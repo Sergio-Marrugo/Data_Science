@@ -2,7 +2,7 @@
 #Sergio L. Marrugo
 #June 2024
 
-setwd("C:/Users/EQUIPO/Desktop/py4e")
+setwd("C:/Users/EQUIPO/Desktop/py4e/Data_science_portfolio/Data_Science")
 library(dplyr)
 library(flexplot)
 library(ggplot2)
