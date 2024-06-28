@@ -1,0 +1,119 @@
+---
+title: "Limpieza Talpa y Yetzelalag"
+author: "Sergio Marrugo, April 2024"
+format: html
+editor: visual
+---
+
+## Quarto
+
+```{r}
+library(tidyverse)
+#files Talpa
+setwd("/Users/EQUIPO/Desktop/DemografiaQinsignis/datos/")
+files1 <- list.files("/Users/EQUIPO/Desktop/DemografiaQinsignis/datos/", pattern = ".csv", full.names = T)
+files_Talpa <- files1[str_detect(files1,"talpa")]
+
+list <- list()
+
+for (i in 1:4) {
+  list[[i]] <- read.csv(files_Talpa[[i]], header = F)
+  
+  list[[i]] <- list[[i]][-1,]
+  
+  colnames(list[[i]]) <- tolower(c("Estado","Localidad" ,"Año","Individuo","Categoria","Base","DAP","Altura","Estatus"))
+  
+}
+list
+
+#we add on other side the 2022 table
+Talpa_2022 <- read.csv(files_Talpa[[5]], header = F)
+Talpa_2022 <- Talpa_2022[-1,]
+Talpa_2022 <- Talpa_2022[,-c(1,6)]
+colnames(Talpa_2022) <- tolower(c("Estado","Localidad" ,"Año","Individuo","Categoria","Base","DAP","Altura","Estatus"))
+
+# extract ind and new ind from 2020 table
+id_table <- read.csv(files_Talpa[[5]], header = F)
+id_table <- id_table[-1,]
+id_table <- id_table[,c(5,6)]
+colnames(id_table) <- tolower(c("Individuo","Ind_nuevo"))
+```
+
+```{r}
+#Correct tables before 2022 remove QI from inds 
+#Joining all in one table Talpa 2021 and before
+joined_talpa_2021 <- do.call(rbind,list)
+Talpa_total <- rbind(joined_talpa_2021, Talpa_2022)
+class(joined_talpa_2021)
+Talpa_total[Talpa_total == ''] <- NA
+print(Talpa_total)
+
+#divide lines with more than one value
+Talpa_total <- Talpa_total %>%
+  separate_rows(altura, sep = "-") %>%
+  separate_rows(base, sep = "-") %>% separate_rows(dap, sep = "-")
+Talpa_labs <- select(Talpa_total,individuo, año)
+write.csv(Talpa_labs, file="Talpa_etiquetas.csv")
+
+# replace strings
+library(stringr)
+
+Talpa_total$individuo<- str_replace(Talpa_total$individuo, "QI0", "") 
+Talpa_total$individuo <- str_replace(Talpa_total$individuo, "QI", "")
+
+Talpa_total$estado <- str_replace(Talpa_total$estado, "Jalisco", "JALISCO")
+
+Talpa_total$estado <- str_replace(Talpa_total$estado, "Jalisco", "JALISCO")
+Talpa_total$localidad <- str_replace(Talpa_total$localidad, "Talpa", "TALPA")
+Talpa_total$categoria <- Talpa_total$categoria %>% str_replace("-P","") %>% str_replace("-J","")
+
+
+#
+Talpa_total <- Talpa_total %>% mutate(altura= as.numeric(altura))
+talpa_plantulas <- filter(Talpa_total, categoria == "P")
+
+
+#Histogram to assess the degree of metric system mixing in plantula individuals
+
+library(ggplot2)
+ggplot(data = talpa_plantulas) +
+geom_histogram(mapping = aes(altura))
+
+#Transforming cm to m in selected individuals
+Talpa_total <- Talpa_total %>%  mutate(altura2 = case_when(categoria == "P" & altura > 2.20 ~ altura/100, categoria == "P" & altura <= 2.20 ~ altura, categoria == "J"| categoria == "A" ~ altura))
+
+Talpa_total <- Talpa_total %>% mutate(altura = altura2) %>% select(!altura2)
+
+
+# creating tables column for tronco
+
+Talpa_total <- Talpa_total  %>% group_by(localidad,individuo,año) %>% mutate(tronco = row_number())
+
+#testt <- left_join(Talpa_total, id_table, by = "individuo") #didn't work properly
+
+write.csv(Talpa_total, file="Talpa_revisar.csv")
+
+unique(joined_talpa_2021$individuo)
+```
+
+```{r}
+# Creating ALTURA, DAP and BASE tables in long and wide
+
+#altura long
+talpa_altura <- select(Talpa_total,!dap & !base & !categoria & !estatus)
+#altura wide
+talpa_altura_wide <- pivot_wider(talpa_altura, id_cols = c(localidad,individuo,tronco), names_from = año, values_from = altura)
+
+
+# base long
+talpa_base <- select(Talpa_total,!dap & !altura & !categoria & !estatus)
+#base wide
+talpa_base_wide <- pivot_wider(talpa_base, id_cols = c(localidad,individuo,tronco), names_from = año, values_from = base)
+
+#dap long
+talpa_dap <- select(Talpa_total,!base & !altura & !categoria & !estatus)
+#dap wide
+talpa_dap_wide <- pivot_wider(talpa_dap, id_cols = c(localidad,individuo,tronco), names_from = año, values_from = dap)
+
+
+```
